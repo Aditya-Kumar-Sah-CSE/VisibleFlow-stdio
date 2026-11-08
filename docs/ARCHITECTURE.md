@@ -246,3 +246,4 @@ The AI module uses a strictly typed **Structured Output Protocol**:
 - **State Management**: Zustand split slices (canvas slice, selection slice, history slice, UI slice) to isolate re-renders.
 - **Autosave Engine**: Smart debounced persistence (1.5-second inactivity timer with dirty-flag checking) to avoid hammering the API.
 - **Security**: JWT & Supabase session validation, project ownership verification on every mutation, sanitize all SVG/HTML inputs, CSP headers, rate-limiting on exports and AI endpoints.
+

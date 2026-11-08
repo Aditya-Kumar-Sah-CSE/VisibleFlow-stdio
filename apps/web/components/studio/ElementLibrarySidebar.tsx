@@ -32,12 +32,35 @@ interface ElementLibrarySidebarProps {
 }
 
 export function ElementLibrarySidebar({ onOpenMathModal }: ElementLibrarySidebarProps) {
-  const { project, addElement, updateFlowNodes } = useEditorStore();
+  const { project, addElement, addFlowNode, updateChartConfig } = useEditorStore();
   const [activeCategory, setActiveCategory] = useState<
     'shapes' | 'text' | 'flowchart' | 'arrows' | 'charts' | 'math'
-  >(project?.type === 'flowchart' ? 'flowchart' : 'shapes');
+  >(project?.type === 'flowchart' ? 'flowchart' : project?.type === 'chart' ? 'charts' : 'shapes');
 
   const handleAddText = (fontSize = 20, fontWeight = 'normal', text = 'New Text Block') => {
+    if (project?.type === 'flowchart' || project?.type === 'diagram') {
+      const newNode = {
+        id: `node-${Math.random().toString(36).substring(2, 7)}`,
+        type: 'custom',
+        position: { x: 220 + Math.random() * 60, y: 160 + Math.random() * 60 },
+        data: {
+          label: text,
+          nodeType: 'process' as any,
+          shapeKind: 'rectangle' as any,
+          style: {
+            fill: '#0f172a',
+            stroke: '#3b82f6',
+            strokeWidth: 1.5,
+            color: '#f8fafc',
+            fontSize,
+          },
+        },
+      };
+      addFlowNode(newNode);
+      toast.success('Added text block to flowchart');
+      return;
+    }
+
     const el = createDefaultElement('text', 200, 200, {
       text,
       style: {
@@ -57,6 +80,28 @@ export function ElementLibrarySidebar({ onOpenMathModal }: ElementLibrarySidebar
   };
 
   const handleAddShape = (shapeKind: ShapeKind, fill = '#3b82f6', stroke = '#1d4ed8') => {
+    if (project?.type === 'flowchart' || project?.type === 'diagram') {
+      const newNode = {
+        id: `node-${Math.random().toString(36).substring(2, 7)}`,
+        type: 'custom',
+        position: { x: 200 + Math.random() * 70, y: 150 + Math.random() * 70 },
+        data: {
+          label: shapeKind.replace('-', ' ').toUpperCase(),
+          nodeType: (shapeKind === 'diamond' ? 'decision' : 'process') as FlowNodeType,
+          shapeKind,
+          style: {
+            fill,
+            stroke,
+            strokeWidth: 2,
+            color: '#ffffff',
+          },
+        },
+      };
+      addFlowNode(newNode);
+      toast.success(`Added ${shapeKind} node`);
+      return;
+    }
+
     const el = createDefaultElement('shape', 250, 200, {
       shapeKind,
       style: {
@@ -94,26 +139,52 @@ export function ElementLibrarySidebar({ onOpenMathModal }: ElementLibrarySidebar
 
   const handleAddFlowNode = (nodeType: FlowNodeType, label: string) => {
     if (!project) return;
-    const activePage = project.pages[0];
-    const currentNodes = activePage?.nodes || [];
-
     const newNode = {
       id: `node-${Math.random().toString(36).substring(2, 7)}`,
       type: 'custom',
-      position: { x: 250 + Math.random() * 80, y: 150 + Math.random() * 80 },
+      position: { x: 220 + Math.random() * 80, y: 160 + Math.random() * 80 },
       data: {
         label,
         nodeType,
+        style: {
+          fill: '#0f172a',
+          stroke: nodeType === 'decision' ? '#f59e0b' : nodeType === 'database' ? '#a855f7' : nodeType === 'cloud' ? '#06b6d4' : '#3b82f6',
+          strokeWidth: 2,
+          color: '#ffffff',
+        },
       },
     };
 
-    updateFlowNodes([...currentNodes, newNode]);
+    addFlowNode(newNode);
     toast.success(`Added ${label} node`);
   };
 
   const handleInsertMathTemplate = (key: string) => {
     const tmpl = VISUAL_MATH_TEMPLATES[key];
     if (!tmpl) return;
+
+    if (project?.type === 'flowchart' || project?.type === 'diagram') {
+      const newNode = {
+        id: `node-${Math.random().toString(36).substring(2, 7)}`,
+        type: 'custom',
+        position: { x: 200 + Math.random() * 70, y: 150 + Math.random() * 70 },
+        data: {
+          label: tmpl.name,
+          nodeType: 'process' as FlowNodeType,
+          shapeKind: 'rounded-rect' as ShapeKind,
+          equationAst: tmpl.ast,
+          style: {
+            fill: '#0f172a',
+            stroke: '#6366f1',
+            strokeWidth: 2,
+            color: '#c7d2fe',
+          },
+        },
+      };
+      addFlowNode(newNode);
+      toast.success(`Inserted ${tmpl.name} node`);
+      return;
+    }
 
     const el = createDefaultElement('equation', 220, 180, {
       name: tmpl.name,
@@ -376,6 +447,35 @@ export function ElementLibrarySidebar({ onOpenMathModal }: ElementLibrarySidebar
           </div>
         )}
 
+        {/* CHARTS CATEGORY */}
+        {activeCategory === 'charts' && (
+          <div className="space-y-2.5">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">ECharts Visualizations</div>
+            {[
+              { type: 'bar', label: 'Bar Chart', desc: 'Category comparison' },
+              { type: 'line', label: 'Line / Trend Chart', desc: 'Time-series trends' },
+              { type: 'pie', label: 'Pie & Donut', desc: 'Portion of whole' },
+              { type: 'scatter', label: 'Scatter Plot', desc: 'Correlation matrix' },
+              { type: 'radar', label: 'Radar Performance', desc: 'Multi-variable scoring' },
+            ].map((c) => (
+              <button
+                key={c.type}
+                onClick={() => {
+                  updateChartConfig({ type: c.type });
+                  toast.success(`Switched to ${c.label}`);
+                }}
+                className="w-full p-2.5 bg-slate-900 border border-slate-800 hover:border-blue-500 rounded-lg text-left transition-colors flex items-center justify-between"
+              >
+                <div>
+                  <span className="text-xs font-bold text-white block">{c.label}</span>
+                  <span className="text-[10px] text-slate-400">{c.desc}</span>
+                </div>
+                <BarChart3 className="w-4 h-4 text-blue-400" />
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* MATH CATEGORY (Zero-LaTeX Engine) */}
         {activeCategory === 'math' && (
           <div className="space-y-3">
@@ -420,3 +520,4 @@ export function ElementLibrarySidebar({ onOpenMathModal }: ElementLibrarySidebar
     </aside>
   );
 }
+

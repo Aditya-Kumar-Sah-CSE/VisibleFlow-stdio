@@ -42,3 +42,4 @@ export class SavePageDto {
   @IsOptional()
   slideSettings?: any;
 }
+

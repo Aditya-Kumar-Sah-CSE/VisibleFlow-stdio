@@ -10,10 +10,12 @@ import {
   Code,
   CheckCircle2,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
 import { useEditorStore } from '@/stores/editor-store';
-import { api } from '@/lib/api-client';
 import pptxgen from 'pptxgenjs';
+import { toPng, toSvg } from 'html-to-image';
+import jsPDF from 'jspdf';
 import toast from 'react-hot-toast';
 
 interface ExportModalProps {
@@ -22,11 +24,14 @@ interface ExportModalProps {
 }
 
 export function ExportModal({ isOpen, onClose }: ExportModalProps) {
-  const { project } = useEditorStore();
+  const { project, activePageIndex } = useEditorStore();
   const [selectedFormat, setSelectedFormat] = useState<'pdf' | 'pptx' | 'png' | 'svg' | 'json'>('pdf');
   const [isExporting, setIsExporting] = useState(false);
 
   if (!isOpen || !project) return null;
+
+  const activePage = project.pages[activePageIndex] || project.pages[0];
+  const filename = (project.title || 'visualflow-studio').toLowerCase().replace(/\s+/g, '-');
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -38,12 +43,14 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${project.title.toLowerCase().replace(/\s+/g, '-')}.json`;
+        a.download = `${filename}.json`;
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
         toast.success('Downloaded project JSON');
       } else if (selectedFormat === 'pptx') {
-        // Native PptxGenJS client generation (ensures 100% editable shapes & text)
+        // Native PptxGenJS client generation
         const pptx = new pptxgen();
         pptx.layout = 'LAYOUT_16x9';
         pptx.title = project.title;
@@ -96,21 +103,61 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
           }
         }
 
-        await pptx.writeFile({ fileName: `${project.title}.pptx` });
+        await pptx.writeFile({ fileName: `${filename}.pptx` });
         toast.success('Generated editable PPTX presentation');
+      } else if (selectedFormat === 'png') {
+        const node = document.getElementById('studio-canvas-container') || document.body;
+        const dataUrl = await toPng(node, {
+          cacheBust: true,
+          backgroundColor: '#090d16',
+          pixelRatio: 2,
+        });
+
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `${filename}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        toast.success('Downloaded high-resolution PNG');
+      } else if (selectedFormat === 'svg') {
+        const node = document.getElementById('studio-canvas-container') || document.body;
+        const dataUrl = await toSvg(node, { cacheBust: true });
+
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `${filename}.svg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        toast.success('Downloaded SVG vector graphic');
       } else if (selectedFormat === 'pdf') {
-        // Trigger print PDF dialog or background worker
-        window.print();
-        toast.success('Print PDF dialog opened');
-      } else {
-        // Direct SVG or PNG export
-        toast.success(`Exported ${selectedFormat.toUpperCase()}`);
+        const node = document.getElementById('studio-canvas-container') || document.body;
+        const dataUrl = await toPng(node, {
+          cacheBust: true,
+          backgroundColor: '#090d16',
+          pixelRatio: 2,
+        });
+
+        const w = activePage?.width || 1280;
+        const h = activePage?.height || 720;
+        const isLandscape = w >= h;
+
+        const pdf = new jsPDF({
+          orientation: isLandscape ? 'landscape' : 'portrait',
+          unit: 'px',
+          format: [w, h],
+        });
+
+        pdf.addImage(dataUrl, 'PNG', 0, 0, w, h);
+        pdf.save(`${filename}.pdf`);
+        toast.success('Downloaded high-quality PDF document');
       }
 
       onClose();
-    } catch (err) {
-      console.error(err);
-      toast.error('Export failed');
+    } catch (err: any) {
+      console.error('Export error:', err);
+      toast.error('Export encountered an error');
     } finally {
       setIsExporting(false);
     }
@@ -120,7 +167,7 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
     {
       id: 'pdf' as const,
       name: 'PDF Document',
-      desc: 'Vector high-DPI document for printing & publication',
+      desc: 'High-DPI vector document ready for printing & archiving',
       icon: FileText,
     },
     {
@@ -132,7 +179,7 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
     {
       id: 'png' as const,
       name: 'PNG Image',
-      desc: 'High-resolution raster graphic with transparent background option',
+      desc: 'High-resolution raster graphic for sharing & presentations',
       icon: Image,
     },
     {

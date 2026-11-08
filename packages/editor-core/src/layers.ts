@@ -66,3 +66,4 @@ function updateZIndices(elements: CanvasElement[]): CanvasElement[] {
     zIndex: index + 1,
   }));
 }
+

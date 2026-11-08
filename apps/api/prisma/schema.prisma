@@ -199,3 +199,4 @@ model ActivityLog {
   @@index([userId])
   @@map("activity_logs")
 }
+

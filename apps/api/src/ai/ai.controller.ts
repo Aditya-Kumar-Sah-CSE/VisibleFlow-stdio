@@ -13,3 +13,4 @@ export class AIController {
     return this.aiService.generate(body);
   }
 }
+

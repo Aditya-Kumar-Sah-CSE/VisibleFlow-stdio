@@ -45,6 +45,13 @@ const ChartRenderer = dynamic(
   { ssr: false }
 );
 
+const PdfStudioRenderer = dynamic(
+  () => import('@/components/studio/renderers/PdfStudioRenderer'),
+  { ssr: false }
+);
+
+import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+
 export default function StudioPage() {
   const params = useParams();
   const router = useRouter();
@@ -65,6 +72,13 @@ export default function StudioPage() {
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isPresenterModeOpen, setIsPresenterModeOpen] = useState(false);
+
+  useKeyboardShortcuts({
+    onOpenMathModal: () => setIsMathModalOpen(true),
+    onOpenAIModal: () => setIsAIModalOpen(true),
+    onOpenExportModal: () => setIsExportModalOpen(true),
+    onOpenPresenterMode: () => setIsPresenterModeOpen(true),
+  });
 
   useEffect(() => {
     if (!projectId) return;
@@ -113,7 +127,7 @@ export default function StudioPage() {
         <ElementLibrarySidebar onOpenMathModal={() => setIsMathModalOpen(true)} />
 
         {/* Center Editing Canvas Area */}
-        <main className="flex-1 flex flex-col overflow-hidden relative bg-slate-900">
+        <main id="studio-canvas-container" className="flex-1 flex flex-col overflow-hidden relative bg-slate-900">
           <div className="flex-1 relative overflow-hidden">
             {project.type === 'flowchart' || project.type === 'diagram' ? (
               <FlowchartRenderer />
@@ -121,6 +135,8 @@ export default function StudioPage() {
               <DocumentRenderer onOpenMathModal={() => setIsMathModalOpen(true)} />
             ) : project.type === 'chart' ? (
               <ChartRenderer />
+            ) : project.type === 'pdf' ? (
+              <PdfStudioRenderer />
             ) : (
               <KonvaCanvasRenderer
                 pageWidth={activePage.width || 1280}
@@ -217,3 +233,4 @@ export default function StudioPage() {
     </div>
   );
 }
+

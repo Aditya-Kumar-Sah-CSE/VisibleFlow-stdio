@@ -290,3 +290,4 @@ export function VisualMathModal({ isOpen, onClose }: VisualMathModalProps) {
     </div>
   );
 }
+

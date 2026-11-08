@@ -196,6 +196,9 @@ export interface FlowNode {
     label: string;
     description?: string;
     nodeType: FlowNodeType;
+    shapeKind?: ShapeKind;
+    equationAst?: MathASTNode;
+    mathLatex?: string;
     icon?: string;
     style?: Partial<ElementStyle>;
     customData?: Record<string, unknown>;
@@ -328,3 +331,4 @@ export interface ExportJob {
   progress: number;
   createdAt: string;
 }
+

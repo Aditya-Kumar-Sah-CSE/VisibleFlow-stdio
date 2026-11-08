@@ -252,3 +252,4 @@ export default function KonvaCanvasRenderer({ pageWidth, pageHeight }: KonvaCanv
     </div>
   );
 }
+

@@ -320,3 +320,4 @@ export default function ChartRenderer() {
     </div>
   );
 }
+

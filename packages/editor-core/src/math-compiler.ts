@@ -238,3 +238,6 @@ export const VISUAL_MATH_TEMPLATES: Record<string, { name: string; category: str
     },
   },
 };
+
+export const compileMathASTToLatex = compileMathAstToLatex;
+

@@ -33,6 +33,7 @@ interface EditorState {
   project: UniversalProject | null;
   activePageIndex: number;
   selectedElementIds: string[];
+  selectedNodeId: string | null;
   activeTool: ToolType;
   selectedShapeKind: ShapeKind;
 
@@ -67,6 +68,7 @@ interface EditorState {
 
   // Selection
   selectElement: (id: string, multi?: boolean) => void;
+  selectNode: (id: string | null) => void;
   deselectAll: () => void;
   setSelectedElementIds: (ids: string[]) => void;
 
@@ -86,6 +88,10 @@ interface EditorState {
   ungroupSelected: () => void;
 
   // Flowchart Node/Edge Mutations
+  addFlowNode: (node: FlowNode) => void;
+  updateFlowNode: (id: string, updates: Partial<FlowNode['data']> & { position?: { x: number; y: number } }) => void;
+  deleteSelectedNode: () => void;
+  duplicateSelectedNode: () => void;
   updateFlowNodes: (nodes: FlowNode[]) => void;
   updateFlowEdges: (edges: FlowEdge[]) => void;
 
@@ -113,6 +119,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   project: null,
   activePageIndex: 0,
   selectedElementIds: [],
+  selectedNodeId: null,
   activeTool: 'select',
   selectedShapeKind: 'rectangle',
 
@@ -138,6 +145,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       project,
       activePageIndex: 0,
       selectedElementIds: [],
+      selectedNodeId: null,
       history,
       canUndo: false,
       canRedo: false,
@@ -154,6 +162,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       activePageIndex: index,
       selectedElementIds: [],
+      selectedNodeId: null,
       history,
       canUndo: false,
       canRedo: false,
@@ -188,14 +197,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const updated = exists
           ? state.selectedElementIds.filter((item) => item !== id)
           : [...state.selectedElementIds, id];
-        return { selectedElementIds: updated };
+        return { selectedElementIds: updated, selectedNodeId: null };
       }
-      return { selectedElementIds: [id] };
+      return { selectedElementIds: [id], selectedNodeId: null };
     });
   },
 
-  deselectAll: () => set({ selectedElementIds: [] }),
-  setSelectedElementIds: (ids) => set({ selectedElementIds: ids }),
+  selectNode: (id) => set({ selectedNodeId: id, selectedElementIds: [] }),
+  deselectAll: () => set({ selectedElementIds: [], selectedNodeId: null }),
+  setSelectedElementIds: (ids) => set({ selectedElementIds: ids, selectedNodeId: null }),
 
   addElement: (element) => {
     const { project, activePageIndex, recordHistory, triggerAutosave } = get();
@@ -384,6 +394,97 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     triggerAutosave();
   },
 
+  addFlowNode: (node) => {
+    const { project, activePageIndex, triggerAutosave } = get();
+    if (!project || !project.pages[activePageIndex]) return;
+    const updatedPages = [...project.pages];
+    const currentPage = { ...updatedPages[activePageIndex] };
+    const currentNodes = currentPage.nodes || [];
+    currentPage.nodes = [...currentNodes, node];
+    updatedPages[activePageIndex] = currentPage;
+    set({
+      project: { ...project, pages: updatedPages },
+      selectedNodeId: node.id,
+      selectedElementIds: [],
+      saveStatus: 'unsaved',
+    });
+    triggerAutosave();
+  },
+
+  updateFlowNode: (id, updates) => {
+    const { project, activePageIndex, triggerAutosave } = get();
+    if (!project || !project.pages[activePageIndex]) return;
+    const updatedPages = [...project.pages];
+    const currentPage = { ...updatedPages[activePageIndex] };
+    const currentNodes = currentPage.nodes || [];
+    currentPage.nodes = currentNodes.map((n) => {
+      if (n.id === id) {
+        return {
+          ...n,
+          position: updates.position || n.position,
+          data: {
+            ...n.data,
+            ...updates,
+            style: {
+              ...(n.data.style || {}),
+              ...(updates.style || {}),
+            },
+          },
+        };
+      }
+      return n;
+    });
+    updatedPages[activePageIndex] = currentPage;
+    set({ project: { ...project, pages: updatedPages }, saveStatus: 'unsaved' });
+    triggerAutosave();
+  },
+
+  deleteSelectedNode: () => {
+    const { project, activePageIndex, selectedNodeId, triggerAutosave } = get();
+    if (!project || !project.pages[activePageIndex] || !selectedNodeId) return;
+    const updatedPages = [...project.pages];
+    const currentPage = { ...updatedPages[activePageIndex] };
+    const currentNodes = currentPage.nodes || [];
+    const currentEdges = currentPage.edges || [];
+    currentPage.nodes = currentNodes.filter((n) => n.id !== selectedNodeId);
+    currentPage.edges = currentEdges.filter((e) => e.source !== selectedNodeId && e.target !== selectedNodeId);
+    updatedPages[activePageIndex] = currentPage;
+    set({
+      project: { ...project, pages: updatedPages },
+      selectedNodeId: null,
+      saveStatus: 'unsaved',
+    });
+    triggerAutosave();
+  },
+
+  duplicateSelectedNode: () => {
+    const { project, activePageIndex, selectedNodeId, triggerAutosave } = get();
+    if (!project || !project.pages[activePageIndex] || !selectedNodeId) return;
+    const updatedPages = [...project.pages];
+    const currentPage = { ...updatedPages[activePageIndex] };
+    const currentNodes = currentPage.nodes || [];
+    const target = currentNodes.find((n) => n.id === selectedNodeId);
+    if (!target) return;
+
+    const cloned: FlowNode = {
+      ...JSON.parse(JSON.stringify(target)),
+      id: `node-${Math.random().toString(36).substring(2, 7)}`,
+      position: { x: target.position.x + 30, y: target.position.y + 30 },
+      data: {
+        ...target.data,
+        label: `${target.data.label} (Copy)`,
+      },
+    };
+    currentPage.nodes = [...currentNodes, cloned];
+    updatedPages[activePageIndex] = currentPage;
+    set({
+      project: { ...project, pages: updatedPages },
+      selectedNodeId: cloned.id,
+      saveStatus: 'unsaved',
+    });
+    triggerAutosave();
+  },
+
   updateFlowNodes: (nodes) => {
     const { project, activePageIndex, triggerAutosave } = get();
     if (!project || !project.pages[activePageIndex]) return;
@@ -555,3 +656,4 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }, 1500); // 1.5s debounced autosave as specified in architecture
   },
 }));
+

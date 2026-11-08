@@ -90,3 +90,4 @@ export const VISUAL_MATH_TEMPLATES: Record<string, any> = {
     latex: '\\begin{pmatrix} \\cos\\theta & -\\sin\\theta \\\\ \\sin\\theta & \\cos\\theta \\end{pmatrix}',
   },
 };
+
