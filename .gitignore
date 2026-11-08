@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js & Build outputs
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Database & Environment
+*.db
+*.db-journal
+.env
+!.env.example
+
+# Logs & OS
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db

@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String?
+  name         String
+  avatarUrl    String?
+  role         String         @default("user") // "user" | "admin" | "enterprise"
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  profile      Profile?
+  projects     Project[]
+  folders      Folder[]
+  projectShares ProjectShare[]
+  exportJobs   ExportJob[]
+  aiGenerations AIGeneration[]
+  activityLogs ActivityLog[]
+
+  @@map("users")
+}
+
+model Profile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio            String?
+  jobTitle       String?
+  company        String?
+  theme          String   @default("light")
+  preferencesJson String?  // Stored JSON
+  updatedAt      DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+model Folder {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String?   @default("#3b82f6")
+  parentId  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  projects  Project[]
+
+  @@map("folders")
+}
+
+model Project {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId     String?
+  folder       Folder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  type         String        // "document" | "slide" | "flowchart" | "diagram" | "chart" | "pdf"
+  title        String
+  description  String?
+  version      Int           @default(1)
+  isStarred    Boolean       @default(false)
+  thumbnailUrl String?
+  settingsJson String?       // Stored JSON for grid, snap, rulers, etc.
+  metadataJson String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  pages        ProjectPage[]
+  assets       ProjectAsset[]
+  shares       ProjectShare[]
+  exportJobs   ExportJob[]
+
+  @@index([userId, type])
+  @@index([folderId])
+  @@map("projects")
+}
+
+model ProjectPage {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  order          Int      @default(0)
+  name           String   @default("Page 1")
+  width          Float    @default(1200)
+  height         Float    @default(800)
+  unit           String   @default("px")
+  backgroundJson String?  // Stored JSON
+  elementsJson   String   @default("[]") // Stored JSON Canvas elements
+  nodesJson      String?  // Stored JSON Flow nodes
+  edgesJson      String?  // Stored JSON Flow edges
+  documentJson   String?  // Stored Tiptap JSON
+  chartConfigJson String? // Stored EChart config JSON
+  slideJson      String?  // Stored slide settings JSON
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([projectId, order])
+  @@map("project_pages")
+}
+
+model ProjectAsset {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  url       String
+  mimeType  String
+  sizeBytes Int
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@map("project_assets")
+}
+
+model Template {
+  id           String   @id @default(cuid())
+  title        String
+  description  String
+  category     String   // "document" | "slide" | "flowchart" | "diagram" | "chart" | "pdf"
+  thumbnailUrl String
+  tagsJson     String   @default("[]")
+  isPremium    Boolean  @default(false)
+  projectData  String   // Complete UniversalProject JSON string
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([category])
+  @@map("templates")
+}
+
+model ProjectShare {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email      String?
+  permission String   @default("view") // "view" | "edit" | "admin"
+  createdAt  DateTime @default(now())
+
+  @@index([projectId])
+  @@map("project_shares")
+}
+
+model ExportJob {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  format      String   // "pdf" | "pptx" | "docx" | "png" | "svg"
+  status      String   @default("pending") // "pending" | "processing" | "completed" | "failed"
+  downloadUrl String?
+  error       String?
+  progress    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([userId])
+  @@map("export_jobs")
+}
+
+model AIGeneration {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt       String
+  category     String
+  responseJson String
+  model        String   @default("gemini-1.5-pro")
+  tokensUsed   Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@map("ai_generations")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  entityId  String?
+  detailsJson String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("activity_logs")
+}
