@@ -80,11 +80,27 @@ export function AIAssistantDrawer({ isOpen, onClose }: AIAssistantDrawerProps) {
       updateChartConfig(generatedResult.chartConfig);
       toast.success('Applied generated chart configuration');
     } else if (category === 'slide' && generatedResult.pages) {
-      // Add or apply slides
-      for (const p of generatedResult.pages) {
-        addPage();
+      const { setProject, project: curProj, recordHistory, triggerAutosave } = useEditorStore.getState();
+      if (curProj) {
+        recordHistory();
+        const newPages = generatedResult.pages.map((p: any, idx: number) => ({
+          id: p.id || `slide-${Date.now()}-${idx}`,
+          name: p.name || `Slide ${idx + 1}`,
+          width: p.width || 1280,
+          height: p.height || 720,
+          unit: p.unit || 'px',
+          background: p.background || { type: 'solid', color: idx === 0 ? '#090d16' : '#ffffff' },
+          elements: p.elements || [],
+          nodes: [],
+          edges: [],
+        }));
+        setProject({
+          ...curProj,
+          pages: newPages,
+        });
+        triggerAutosave();
+        toast.success(`Generated & applied ${newPages.length} modern presentation slides!`);
       }
-      toast.success('Inserted AI presentation slides');
     } else if (category === 'document' && generatedResult.content) {
       updateDocumentContent(generatedResult.content);
       toast.success('Updated document content');

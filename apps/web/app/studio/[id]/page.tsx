@@ -50,6 +50,19 @@ const PdfStudioRenderer = dynamic(
   { ssr: false }
 );
 
+const SlideStudioRenderer = dynamic(
+  () => import('@/components/studio/renderers/SlideStudioRenderer'),
+  { ssr: false }
+);
+
+const LiveVideoRecorderWidget = dynamic(
+  () =>
+    import('@/components/studio/recording/LiveVideoRecorderWidget').then(
+      (mod) => mod.LiveVideoRecorderWidget
+    ),
+  { ssr: false }
+);
+
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 
 export default function StudioPage() {
@@ -137,6 +150,11 @@ export default function StudioPage() {
               <ChartRenderer />
             ) : project.type === 'pdf' ? (
               <PdfStudioRenderer />
+            ) : project.type === 'slide' ? (
+              <SlideStudioRenderer
+                onOpenPresenterMode={() => setIsPresenterModeOpen(true)}
+                onOpenMathModal={() => setIsMathModalOpen(true)}
+              />
             ) : (
               <KonvaCanvasRenderer
                 pageWidth={activePage.width || 1280}
@@ -145,65 +163,8 @@ export default function StudioPage() {
             )}
           </div>
 
-          {/* Slide Deck Navigation Bar (for Slide Studio) */}
-          {project.type === 'slide' && (
-            <div className="h-24 bg-slate-950 border-t border-slate-800 px-4 py-2 flex items-center space-x-3 overflow-x-auto shrink-0 z-10">
-              {project.pages.map((p, idx) => {
-                const isActive = idx === activePageIndex;
-                return (
-                  <div
-                    key={p.id}
-                    onClick={() => setActivePageIndex(idx)}
-                    className={`h-18 w-32 rounded-lg border cursor-pointer relative overflow-hidden shrink-0 transition-all flex flex-col justify-between p-1.5 ${
-                      isActive
-                        ? 'border-blue-500 bg-slate-900 shadow-md ring-2 ring-blue-500/30'
-                        : 'border-slate-800 bg-slate-950 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-[10px] text-slate-400">
-                      <span>Slide {idx + 1}</span>
-                      <div className="flex items-center space-x-1 opacity-0 hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            duplicatePage(idx);
-                          }}
-                          className="hover:text-white"
-                          title="Duplicate slide"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </button>
-                        {project.pages.length > 1 && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deletePage(idx);
-                            }}
-                            className="hover:text-rose-400"
-                            title="Delete slide"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-[11px] font-bold text-slate-300 truncate">
-                      {p.name || `Slide ${idx + 1}`}
-                    </div>
-                  </div>
-                );
-              })}
-
-              <button
-                onClick={addPage}
-                className="h-18 w-24 rounded-lg border border-dashed border-slate-800 hover:border-blue-500 hover:bg-slate-900/60 flex flex-col items-center justify-center text-slate-400 hover:text-white transition-colors shrink-0"
-                title="Add new slide"
-              >
-                <Plus className="w-4 h-4 mb-1" />
-                <span className="text-[10px] font-semibold">New Slide</span>
-              </button>
-            </div>
-          )}
+          {/* Floating Live Video & Screen Recorder */}
+          <LiveVideoRecorderWidget />
         </main>
 
         {/* Right Properties Panel */}

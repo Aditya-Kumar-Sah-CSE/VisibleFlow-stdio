@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   ChevronLeft,
@@ -11,6 +11,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useEditorStore } from '@/stores/editor-store';
+import katex from 'katex';
+import { compileMathASTToLatex } from '@visualflow/editor-core';
 
 interface PresenterModeModalProps {
   isOpen: boolean;
@@ -23,7 +25,7 @@ export function PresenterModeModal({ isOpen, onClose }: PresenterModeModalProps)
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const slides = project?.pages || [];
-  const currentSlide = slides[currentSlideIndex];
+  const currentSlide = slides[currentSlideIndex] || slides[0];
 
   // Presentation Timer
   useEffect(() => {
@@ -39,7 +41,7 @@ export function PresenterModeModal({ isOpen, onClose }: PresenterModeModalProps)
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === ' ') {
-        setCurrentSlideIndex((prev) => Math.min(prev + 1, slides.length - 1));
+        setCurrentSlideIndex((prev) => Math.min(prev + 1, Math.max(slides.length - 1, 0)));
       } else if (e.key === 'ArrowLeft') {
         setCurrentSlideIndex((prev) => Math.max(prev - 1, 0));
       } else if (e.key === 'Escape') {
@@ -58,6 +60,9 @@ export function PresenterModeModal({ isOpen, onClose }: PresenterModeModalProps)
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const slideW = currentSlide?.width || 1280;
+  const slideH = currentSlide?.height || 720;
+
   return (
     <div className="fixed inset-0 z-50 bg-black text-white flex flex-col select-none">
       {/* Presenter Top Bar */}
@@ -65,7 +70,9 @@ export function PresenterModeModal({ isOpen, onClose }: PresenterModeModalProps)
         <div className="flex items-center space-x-3">
           <span className="font-bold text-white">{project.title}</span>
           <span className="text-zinc-500">•</span>
-          <span>Slide {currentSlideIndex + 1} of {slides.length}</span>
+          <span>
+            Slide {currentSlideIndex + 1} of {Math.max(slides.length, 1)}
+          </span>
         </div>
 
         <div className="flex items-center space-x-4">
@@ -93,25 +100,31 @@ export function PresenterModeModal({ isOpen, onClose }: PresenterModeModalProps)
             aspectRatio: '16/9',
             backgroundColor: currentSlide?.background?.color || '#090d16',
           }}
-          className="rounded-xl shadow-2xl relative p-12 border border-zinc-800 flex flex-col justify-between overflow-hidden"
+          className="rounded-xl shadow-2xl relative border border-zinc-800 overflow-hidden"
         >
           {/* Render Slide Elements */}
-          {currentSlide?.elements.map((el) => {
+          {(currentSlide?.elements || []).map((el) => {
+            const leftPct = (el.x / slideW) * 100;
+            const topPct = (el.y / slideH) * 100;
+            const widthPct = (el.width / slideW) * 100;
+            const heightPct = (el.height / slideH) * 100;
+
             if (el.type === 'text') {
               return (
                 <div
                   key={el.id}
                   style={{
                     position: 'absolute',
-                    left: `${(el.x / (currentSlide.width || 1280)) * 100}%`,
-                    top: `${(el.y / (currentSlide.height || 720)) * 100}%`,
-                    width: `${(el.width / (currentSlide.width || 1280)) * 100}%`,
-                    fontSize: `${(el.style?.fontSize || 20) * 1.2}px`,
+                    left: `${leftPct}%`,
+                    top: `${topPct}%`,
+                    width: `${widthPct}%`,
+                    fontSize: `${(el.style?.fontSize || 20) * 1.1}px`,
                     fontWeight: el.style?.fontWeight || 'normal',
                     color: el.style?.color || '#ffffff',
                     textAlign: el.style?.textAlign || 'left',
+                    opacity: el.style?.opacity ?? 1,
                   }}
-                  className="leading-snug"
+                  className="leading-snug select-none"
                 >
                   {el.text}
                 </div>
@@ -124,19 +137,74 @@ export function PresenterModeModal({ isOpen, onClose }: PresenterModeModalProps)
                   key={el.id}
                   style={{
                     position: 'absolute',
-                    left: `${(el.x / (currentSlide.width || 1280)) * 100}%`,
-                    top: `${(el.y / (currentSlide.height || 720)) * 100}%`,
-                    width: `${(el.width / (currentSlide.width || 1280)) * 100}%`,
-                    height: `${(el.height / (currentSlide.height || 720)) * 100}%`,
+                    left: `${leftPct}%`,
+                    top: `${topPct}%`,
+                    width: `${widthPct}%`,
+                    height: `${heightPct}%`,
                     backgroundColor: el.style?.fill || '#3b82f6',
                     borderColor: el.style?.stroke || '#1d4ed8',
                     borderWidth: `${el.style?.strokeWidth || 1}px`,
                     borderRadius: `${el.style?.cornerRadius || 8}px`,
+                    opacity: el.style?.opacity ?? 1,
                   }}
-                  className="flex items-center justify-center p-4 text-center text-white font-bold"
+                  className="flex items-center justify-center p-4 text-center text-white font-bold select-none shadow-lg"
                 >
                   {el.text}
                 </div>
+              );
+            }
+
+            if (el.type === 'image') {
+              return (
+                <div
+                  key={el.id}
+                  style={{
+                    position: 'absolute',
+                    left: `${leftPct}%`,
+                    top: `${topPct}%`,
+                    width: `${widthPct}%`,
+                    height: `${heightPct}%`,
+                    borderRadius: `${el.style?.cornerRadius || 8}px`,
+                    overflow: 'hidden',
+                    opacity: el.style?.opacity ?? 1,
+                  }}
+                  className="shadow-xl"
+                >
+                  <img
+                    src={el.imageUrl || 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800'}
+                    alt={el.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              );
+            }
+
+            if (el.type === 'equation') {
+              let html = '';
+              try {
+                const latex = compileMathASTToLatex((el as any).equationAst);
+                html = katex.renderToString(latex, { throwOnError: false, displayMode: true });
+              } catch {
+                html = '';
+              }
+              return (
+                <div
+                  key={el.id}
+                  style={{
+                    position: 'absolute',
+                    left: `${leftPct}%`,
+                    top: `${topPct}%`,
+                    width: `${widthPct}%`,
+                    height: `${heightPct}%`,
+                    backgroundColor: el.style?.fill || '#0f172a',
+                    borderColor: el.style?.stroke || '#6366f1',
+                    borderWidth: '1.5px',
+                    borderRadius: `${el.style?.cornerRadius || 8}px`,
+                    color: '#c7d2fe',
+                  }}
+                  className="flex items-center justify-center p-3 shadow-lg"
+                  dangerouslySetInnerHTML={{ __html: html }}
+                />
               );
             }
 
@@ -153,8 +221,8 @@ export function PresenterModeModal({ isOpen, onClose }: PresenterModeModalProps)
           <ChevronLeft className="w-6 h-6" />
         </button>
         <button
-          onClick={() => setCurrentSlideIndex((prev) => Math.min(prev + 1, slides.length - 1))}
-          disabled={currentSlideIndex === slides.length - 1}
+          onClick={() => setCurrentSlideIndex((prev) => Math.min(prev + 1, Math.max(slides.length - 1, 0)))}
+          disabled={currentSlideIndex >= slides.length - 1}
           className="absolute right-6 top-1/2 -translate-y-1/2 p-3 rounded-full bg-zinc-950/80 hover:bg-zinc-800 disabled:opacity-20 text-white transition-all shadow-xl"
         >
           <ChevronRight className="w-6 h-6" />
@@ -165,7 +233,9 @@ export function PresenterModeModal({ isOpen, onClose }: PresenterModeModalProps)
       <div className="h-16 bg-zinc-950 border-t border-zinc-800 px-6 flex items-center justify-between text-xs text-zinc-400">
         <div>
           <span className="font-semibold text-zinc-300">Speaker Notes: </span>
-          <span>{currentSlide?.slideSettings?.speakerNotes || 'No speaker notes recorded for this slide.'}</span>
+          <span>
+            {currentSlide?.slideSettings?.speakerNotes || 'Use arrow keys or click buttons to navigate slides.'}
+          </span>
         </div>
         <div className="text-[11px] text-zinc-500">
           Press Space / Arrow keys to navigate • Esc to exit
@@ -174,4 +244,3 @@ export function PresenterModeModal({ isOpen, onClose }: PresenterModeModalProps)
     </div>
   );
 }
-

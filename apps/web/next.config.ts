@@ -1,14 +1,23 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  reactStrictMode: false, // Konva canvas works best without double mount in dev
+  reactStrictMode: false,
   transpilePackages: [
     '@visualflow/shared-types',
     '@visualflow/document-schema',
     '@visualflow/editor-core',
   ],
-  webpack: (config) => {
-    config.externals = [...(config.externals || []), { canvas: 'canvas' }];
+  webpack: (config, { isServer }) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      canvas: false,
+      fs: false,
+      path: false,
+    };
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'konva$': 'konva/lib/index.js',
+    };
     return config;
   },
   images: {
@@ -17,4 +26,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-

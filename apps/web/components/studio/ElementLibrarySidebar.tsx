@@ -20,6 +20,9 @@ import {
   Hexagon,
   MessageSquare,
   Plus,
+  Image as ImageIcon,
+  Wand2,
+  Download,
 } from 'lucide-react';
 import { useEditorStore } from '@/stores/editor-store';
 import { createDefaultElement } from '@visualflow/document-schema';
@@ -34,8 +37,48 @@ interface ElementLibrarySidebarProps {
 export function ElementLibrarySidebar({ onOpenMathModal }: ElementLibrarySidebarProps) {
   const { project, addElement, addFlowNode, updateChartConfig } = useEditorStore();
   const [activeCategory, setActiveCategory] = useState<
-    'shapes' | 'text' | 'flowchart' | 'arrows' | 'charts' | 'math'
+    'shapes' | 'text' | 'flowchart' | 'arrows' | 'charts' | 'math' | 'images'
   >(project?.type === 'flowchart' ? 'flowchart' : project?.type === 'chart' ? 'charts' : 'shapes');
+
+  const [aiImagePrompt, setAiImagePrompt] = useState('');
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [customImageUrl, setCustomImageUrl] = useState('');
+
+  const handleInsertImage = (url: string, name = 'Visual Asset') => {
+    const el = createDefaultElement('image', 200, 160, {
+      imageUrl: url,
+      name,
+      width: 440,
+      height: 260,
+      style: {
+        fill: 'transparent',
+        stroke: '#3b82f6',
+        strokeWidth: 1,
+        cornerRadius: 12,
+        opacity: 1,
+      },
+    });
+    addElement(el);
+    toast.success(`Inserted ${name}`);
+  };
+
+  const handleGenerateAIImage = (promptToUse?: string) => {
+    const p = (promptToUse || aiImagePrompt).trim();
+    if (!p) {
+      toast.error('Please enter an image prompt');
+      return;
+    }
+
+    setIsGeneratingImage(true);
+    const seed = Math.floor(Math.random() * 900000) + 100000;
+    const generatedUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
+      p
+    )}?width=800&height=480&nologo=true&seed=${seed}`;
+
+    handleInsertImage(generatedUrl, `AI: ${p.slice(0, 24)}`);
+    setIsGeneratingImage(false);
+    toast.success('Generated AI Visual & Added to Canvas');
+  };
 
   const handleAddText = (fontSize = 20, fontWeight = 'normal', text = 'New Text Block') => {
     if (project?.type === 'flowchart' || project?.type === 'diagram') {
@@ -206,7 +249,7 @@ export function ElementLibrarySidebar({ onOpenMathModal }: ElementLibrarySidebar
   return (
     <aside className="w-72 bg-slate-950 border-r border-slate-800 flex flex-col select-none shrink-0 z-20">
       {/* Category Tabs */}
-      <div className="grid grid-cols-6 border-b border-slate-800 p-1.5 bg-slate-900/70 text-slate-400">
+      <div className="grid grid-cols-7 border-b border-slate-800 p-1 bg-slate-900/70 text-slate-400">
         <button
           onClick={() => setActiveCategory('shapes')}
           className={`p-2 rounded flex justify-center transition-colors ${
@@ -224,6 +267,15 @@ export function ElementLibrarySidebar({ onOpenMathModal }: ElementLibrarySidebar
           title="Text"
         >
           <Type className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => setActiveCategory('images')}
+          className={`p-2 rounded flex justify-center transition-colors ${
+            activeCategory === 'images' ? 'bg-blue-600 text-white shadow-sm' : 'hover:text-white'
+          }`}
+          title="Images & AI Visuals"
+        >
+          <ImageIcon className="w-4 h-4" />
         </button>
         <button
           onClick={() => setActiveCategory('flowchart')}
@@ -514,6 +566,144 @@ export function ElementLibrarySidebar({ onOpenMathModal }: ElementLibrarySidebar
               <Sigma className="w-4 h-4" />
               <span>Open Visual Math Builder</span>
             </button>
+          </div>
+        )}
+
+        {/* IMAGES & AI VISUALS CATEGORY */}
+        {activeCategory === 'images' && (
+          <div className="space-y-4">
+            {/* AI Image Generator Section */}
+            <div className="p-3 bg-gradient-to-br from-blue-950/40 to-slate-900 border border-blue-500/30 rounded-xl space-y-2.5">
+              <div className="flex items-center space-x-2 text-xs font-bold text-white">
+                <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                <span>AI Visual Generator</span>
+                <span className="text-[9px] bg-blue-500/20 text-blue-300 px-1.5 py-0.2 rounded font-normal">
+                  Instant
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-tight">
+                Describe an image to generate and insert directly into your slide or document.
+              </p>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={aiImagePrompt}
+                  onChange={(e) => setAiImagePrompt(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleGenerateAIImage()}
+                  placeholder="e.g. Modern futuristic cloud server room, cinematic..."
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none"
+                />
+
+                {/* Quick Prompt Chips */}
+                <div className="flex flex-wrap gap-1 text-[10px]">
+                  {[
+                    'Cloud Architecture',
+                    'Cybersecurity Hub',
+                    'Minimalist Workspace',
+                    'Executive Analytics',
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      onClick={() => {
+                        setAiImagePrompt(chip);
+                        handleGenerateAIImage(chip);
+                      }}
+                      className="px-2 py-0.5 rounded-full bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white transition-colors"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => handleGenerateAIImage()}
+                  disabled={isGeneratingImage || !aiImagePrompt.trim()}
+                  className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg text-xs font-bold flex items-center justify-center space-x-1.5 transition-colors shadow-md"
+                >
+                  <Wand2 className="w-3.5 h-3.5" />
+                  <span>Generate AI Image</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Curated Unsplash Gallery */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                Curated Visual Assets
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  {
+                    name: 'Cloud Tech',
+                    url: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&auto=format&fit=crop&q=80',
+                  },
+                  {
+                    name: 'Architecture',
+                    url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&auto=format&fit=crop&q=80',
+                  },
+                  {
+                    name: 'Modern Office',
+                    url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&auto=format&fit=crop&q=80',
+                  },
+                  {
+                    name: 'Data Analytics',
+                    url: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop&q=80',
+                  },
+                  {
+                    name: 'Executive Team',
+                    url: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&auto=format&fit=crop&q=80',
+                  },
+                  {
+                    name: 'Abstract Neon',
+                    url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.name}
+                    onClick={() => handleInsertImage(item.url, item.name)}
+                    className="group relative h-20 rounded-lg overflow-hidden border border-slate-800 hover:border-blue-500 cursor-pointer transition-all shadow-sm"
+                  >
+                    <img
+                      src={item.url}
+                      alt={item.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-1.5">
+                      <span className="text-[10px] font-semibold text-white drop-shadow truncate">
+                        {item.name}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Image URL */}
+            <div className="pt-2 border-t border-slate-800 space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Custom Web Image
+              </span>
+              <div className="flex space-x-1.5">
+                <input
+                  type="url"
+                  value={customImageUrl}
+                  onChange={(e) => setCustomImageUrl(e.target.value)}
+                  placeholder="https://example.com/photo.jpg"
+                  className="flex-1 bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
+                />
+                <button
+                  onClick={() => {
+                    if (customImageUrl.trim()) {
+                      handleInsertImage(customImageUrl.trim(), 'Custom Image');
+                      setCustomImageUrl('');
+                    }
+                  }}
+                  className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold"
+                >
+                  Insert
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

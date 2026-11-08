@@ -205,8 +205,10 @@ export default function FlowchartRenderer() {
           return (
             !sn ||
             pn.id !== sn.id ||
-            pn.data.label !== sn.data.label ||
-            pn.data.nodeType !== sn.data.nodeType ||
+            pn.position?.x !== sn.position?.x ||
+            pn.position?.y !== sn.position?.y ||
+            pn.data?.label !== sn.data?.label ||
+            pn.data?.nodeType !== sn.data?.nodeType ||
             (pn.selected ?? false) !== (sn.id === selectedNodeId)
           );
         });
@@ -227,7 +229,21 @@ export default function FlowchartRenderer() {
   useEffect(() => {
     const storeEdges = activePage?.edges || [];
     setEdges((prevEdges) => {
-      if (prevEdges.length === storeEdges.length) return prevEdges;
+      const isDifferent =
+        prevEdges.length !== storeEdges.length ||
+        prevEdges.some((pe, idx) => {
+          const se = storeEdges[idx];
+          return (
+            !se ||
+            pe.id !== se.id ||
+            pe.source !== se.source ||
+            pe.target !== se.target ||
+            pe.label !== se.label
+          );
+        });
+
+      if (!isDifferent) return prevEdges;
+
       return storeEdges.map((e) => ({
         id: e.id,
         source: e.source,

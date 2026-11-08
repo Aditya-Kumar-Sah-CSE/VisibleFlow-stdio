@@ -52,7 +52,8 @@ interface EditorState {
   saveStatus: 'saved' | 'saving' | 'unsaved' | 'error';
 
   // History
-  history: HistoryManager<UniversalPage> | null;
+  undoStack: UniversalPage[];
+  redoStack: UniversalPage[];
   canUndo: boolean;
   canRedo: boolean;
 
@@ -74,7 +75,7 @@ interface EditorState {
 
   // Canvas Element Mutations
   addElement: (element: CanvasElement) => void;
-  updateElement: (id: string, updates: Partial<CanvasElement>) => void;
+  updateElement: (id: string, updates: Partial<CanvasElement>, shouldRecord?: boolean) => void;
   updateElementsBatch: (updates: Array<{ id: string; changes: Partial<CanvasElement> }>) => void;
   deleteSelectedElements: () => void;
   duplicateSelectedElements: () => void;
@@ -92,8 +93,8 @@ interface EditorState {
   updateFlowNode: (id: string, updates: Partial<FlowNode['data']> & { position?: { x: number; y: number } }) => void;
   deleteSelectedNode: () => void;
   duplicateSelectedNode: () => void;
-  updateFlowNodes: (nodes: FlowNode[]) => void;
-  updateFlowEdges: (edges: FlowEdge[]) => void;
+  updateFlowNodes: (nodes: FlowNode[], shouldRecord?: boolean) => void;
+  updateFlowEdges: (edges: FlowEdge[], shouldRecord?: boolean) => void;
 
   // Document Content & Chart Mutations
   updateDocumentContent: (content: any) => void;
@@ -103,6 +104,9 @@ interface EditorState {
   addPage: () => void;
   duplicatePage: (index: number) => void;
   deletePage: (index: number) => void;
+  movePage: (index: number, direction: 'left' | 'right') => void;
+  updateActivePageBackground: (color: string) => void;
+  setPageDimensions: (width: number, height: number) => void;
 
   // Undo / Redo
   undo: () => void;
@@ -134,19 +138,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   lastSavedAt: null,
   saveStatus: 'saved',
 
-  history: null,
+  undoStack: [],
+  redoStack: [],
   canUndo: false,
   canRedo: false,
 
   setProject: (project) => {
-    const firstPage = project.pages[0];
-    const history = firstPage ? new HistoryManager<UniversalPage>(firstPage) : null;
     set({
       project,
       activePageIndex: 0,
       selectedElementIds: [],
       selectedNodeId: null,
-      history,
+      undoStack: [],
+      redoStack: [],
       canUndo: false,
       canRedo: false,
       lastSavedAt: project.updatedAt,
@@ -157,13 +161,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setActivePageIndex: (index) => {
     const { project } = get();
     if (!project || !project.pages[index]) return;
-    const targetPage = project.pages[index];
-    const history = new HistoryManager<UniversalPage>(targetPage);
     set({
       activePageIndex: index,
       selectedElementIds: [],
       selectedNodeId: null,
-      history,
+      undoStack: [],
+      redoStack: [],
       canUndo: false,
       canRedo: false,
     });
@@ -226,10 +229,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     triggerAutosave();
   },
 
-  updateElement: (id, updates) => {
-    const { project, activePageIndex, triggerAutosave } = get();
+  updateElement: (id, updates, shouldRecord = true) => {
+    const { project, activePageIndex, recordHistory, triggerAutosave } = get();
     if (!project || !project.pages[activePageIndex]) return;
 
+    if (shouldRecord) {
+      recordHistory();
+    }
     const updatedPages = [...project.pages];
     const currentPage = { ...updatedPages[activePageIndex] };
     currentPage.elements = currentPage.elements.map((el) => {
@@ -395,8 +401,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   addFlowNode: (node) => {
-    const { project, activePageIndex, triggerAutosave } = get();
+    const { project, activePageIndex, recordHistory, triggerAutosave } = get();
     if (!project || !project.pages[activePageIndex]) return;
+    recordHistory();
     const updatedPages = [...project.pages];
     const currentPage = { ...updatedPages[activePageIndex] };
     const currentNodes = currentPage.nodes || [];
@@ -412,8 +419,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   updateFlowNode: (id, updates) => {
-    const { project, activePageIndex, triggerAutosave } = get();
+    const { project, activePageIndex, recordHistory, triggerAutosave } = get();
     if (!project || !project.pages[activePageIndex]) return;
+    recordHistory();
     const updatedPages = [...project.pages];
     const currentPage = { ...updatedPages[activePageIndex] };
     const currentNodes = currentPage.nodes || [];
@@ -440,8 +448,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   deleteSelectedNode: () => {
-    const { project, activePageIndex, selectedNodeId, triggerAutosave } = get();
+    const { project, activePageIndex, selectedNodeId, recordHistory, triggerAutosave } = get();
     if (!project || !project.pages[activePageIndex] || !selectedNodeId) return;
+    recordHistory();
     const updatedPages = [...project.pages];
     const currentPage = { ...updatedPages[activePageIndex] };
     const currentNodes = currentPage.nodes || [];
@@ -458,8 +467,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   duplicateSelectedNode: () => {
-    const { project, activePageIndex, selectedNodeId, triggerAutosave } = get();
+    const { project, activePageIndex, selectedNodeId, recordHistory, triggerAutosave } = get();
     if (!project || !project.pages[activePageIndex] || !selectedNodeId) return;
+    recordHistory();
     const updatedPages = [...project.pages];
     const currentPage = { ...updatedPages[activePageIndex] };
     const currentNodes = currentPage.nodes || [];
@@ -485,18 +495,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     triggerAutosave();
   },
 
-  updateFlowNodes: (nodes) => {
-    const { project, activePageIndex, triggerAutosave } = get();
+  updateFlowNodes: (nodes, shouldRecord = true) => {
+    const { project, activePageIndex, recordHistory, triggerAutosave } = get();
     if (!project || !project.pages[activePageIndex]) return;
+    if (shouldRecord) {
+      recordHistory();
+    }
     const updatedPages = [...project.pages];
     updatedPages[activePageIndex] = { ...updatedPages[activePageIndex], nodes };
     set({ project: { ...project, pages: updatedPages }, saveStatus: 'unsaved' });
     triggerAutosave();
   },
 
-  updateFlowEdges: (edges) => {
-    const { project, activePageIndex, triggerAutosave } = get();
+  updateFlowEdges: (edges, shouldRecord = true) => {
+    const { project, activePageIndex, recordHistory, triggerAutosave } = get();
     if (!project || !project.pages[activePageIndex]) return;
+    if (shouldRecord) {
+      recordHistory();
+    }
     const updatedPages = [...project.pages];
     updatedPages[activePageIndex] = { ...updatedPages[activePageIndex], edges };
     set({ project: { ...project, pages: updatedPages }, saveStatus: 'unsaved' });
@@ -569,8 +585,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   deletePage: (index) => {
-    const { project, triggerAutosave } = get();
+    const { project, recordHistory, triggerAutosave } = get();
     if (!project || project.pages.length <= 1) return;
+    recordHistory();
     const updatedPages = project.pages.filter((_, i) => i !== index);
     const nextIndex = Math.max(0, index - 1);
     set({
@@ -582,47 +599,103 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     triggerAutosave();
   },
 
+  movePage: (index, direction) => {
+    const { project, recordHistory, triggerAutosave } = get();
+    if (!project) return;
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= project.pages.length) return;
+    recordHistory();
+    const pages = [...project.pages];
+    const temp = pages[index];
+    pages[index] = pages[targetIndex];
+    pages[targetIndex] = temp;
+    set({ project: { ...project, pages }, activePageIndex: targetIndex, saveStatus: 'unsaved' });
+    triggerAutosave();
+  },
+
+  updateActivePageBackground: (color) => {
+    const { project, activePageIndex, recordHistory, triggerAutosave } = get();
+    if (!project || !project.pages[activePageIndex]) return;
+    recordHistory();
+    const pages = [...project.pages];
+    pages[activePageIndex] = {
+      ...pages[activePageIndex],
+      background: { ...(pages[activePageIndex].background || { type: 'solid' }), color },
+    };
+    set({ project: { ...project, pages }, saveStatus: 'unsaved' });
+    triggerAutosave();
+  },
+
+  setPageDimensions: (width, height) => {
+    const { project, activePageIndex, recordHistory, triggerAutosave } = get();
+    if (!project || !project.pages[activePageIndex]) return;
+    recordHistory();
+    const pages = [...project.pages];
+    pages[activePageIndex] = {
+      ...pages[activePageIndex],
+      width,
+      height,
+    };
+    set({ project: { ...project, pages }, saveStatus: 'unsaved' });
+    triggerAutosave();
+  },
+
   recordHistory: () => {
-    const { project, activePageIndex, history } = get();
-    if (!project || !project.pages[activePageIndex] || !history) return;
-    history.push(project.pages[activePageIndex]);
+    const { project, activePageIndex, undoStack } = get();
+    if (!project || !project.pages[activePageIndex]) return;
+    const snapshot = JSON.parse(JSON.stringify(project.pages[activePageIndex]));
+    const nextUndoStack = [...undoStack.slice(-49), snapshot];
     set({
-      canUndo: history.canUndo,
-      canRedo: history.canRedo,
+      undoStack: nextUndoStack,
+      redoStack: [],
+      canUndo: true,
+      canRedo: false,
     });
   },
 
   undo: () => {
-    const { project, activePageIndex, history, triggerAutosave } = get();
-    if (!project || !history || !history.canUndo) return;
-    const previousPage = history.undo();
-    if (!previousPage) return;
+    const { project, activePageIndex, undoStack, redoStack, triggerAutosave } = get();
+    if (!project || !project.pages[activePageIndex] || undoStack.length === 0) return;
+    const nextUndoStack = [...undoStack];
+    const previousPage = nextUndoStack.pop()!;
+    const currentSnapshot = JSON.parse(JSON.stringify(project.pages[activePageIndex]));
+    const nextRedoStack = [...redoStack, currentSnapshot];
 
     const updatedPages = [...project.pages];
     updatedPages[activePageIndex] = previousPage;
+
     set({
       project: { ...project, pages: updatedPages },
-      canUndo: history.canUndo,
-      canRedo: history.canRedo,
+      undoStack: nextUndoStack,
+      redoStack: nextRedoStack,
+      canUndo: nextUndoStack.length > 0,
+      canRedo: true,
       selectedElementIds: [],
+      selectedNodeId: null,
       saveStatus: 'unsaved',
     });
     triggerAutosave();
   },
 
   redo: () => {
-    const { project, activePageIndex, history, triggerAutosave } = get();
-    if (!project || !history || !history.canRedo) return;
-    const nextPage = history.redo();
-    if (!nextPage) return;
+    const { project, activePageIndex, undoStack, redoStack, triggerAutosave } = get();
+    if (!project || !project.pages[activePageIndex] || redoStack.length === 0) return;
+    const nextRedoStack = [...redoStack];
+    const nextPage = nextRedoStack.pop()!;
+    const currentSnapshot = JSON.parse(JSON.stringify(project.pages[activePageIndex]));
+    const nextUndoStack = [...undoStack, currentSnapshot];
 
     const updatedPages = [...project.pages];
     updatedPages[activePageIndex] = nextPage;
+
     set({
       project: { ...project, pages: updatedPages },
-      canUndo: history.canUndo,
-      canRedo: history.canRedo,
+      undoStack: nextUndoStack,
+      redoStack: nextRedoStack,
+      canUndo: true,
+      canRedo: nextRedoStack.length > 0,
       selectedElementIds: [],
+      selectedNodeId: null,
       saveStatus: 'unsaved',
     });
     triggerAutosave();

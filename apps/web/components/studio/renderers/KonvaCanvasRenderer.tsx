@@ -1,10 +1,39 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Stage, Layer, Rect, Circle, Text as KonvaText, Arrow, Group, Transformer } from 'react-konva';
+import { Stage, Layer, Rect, Circle, Text as KonvaText, Arrow, Group, Transformer, Image as KonvaImage } from 'react-konva';
 import { useEditorStore } from '@/stores/editor-store';
 import type { CanvasElement } from '@visualflow/shared-types';
 import { snapPointToGrid } from '@visualflow/editor-core';
+
+function URLImage({ el, onSelect, onDragEnd, isSelected }: any) {
+  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  useEffect(() => {
+    if (!el.imageUrl) return;
+    const img = new window.Image();
+    img.src = el.imageUrl;
+    img.crossOrigin = 'anonymous';
+    img.onload = () => setImage(img);
+  }, [el.imageUrl]);
+
+  return (
+    <KonvaImage
+      id={el.id}
+      image={image || undefined}
+      x={el.x}
+      y={el.y}
+      width={el.width}
+      height={el.height}
+      draggable={!el.isLocked}
+      cornerRadius={el.style?.cornerRadius || 8}
+      opacity={el.style?.opacity ?? 1}
+      stroke={isSelected ? '#3b82f6' : el.style?.stroke || 'transparent'}
+      strokeWidth={isSelected ? 2 : el.style?.strokeWidth || 0}
+      onClick={onSelect}
+      onDragEnd={onDragEnd}
+    />
+  );
+}
 
 interface KonvaCanvasRendererProps {
   pageWidth: number;
@@ -225,6 +254,30 @@ export default function KonvaCanvasRenderer({ pageWidth, pageHeight }: KonvaCanv
                     }}
                     onDragEnd={(e) => {
                       updateElement(el.id, { x: e.target.x(), y: e.target.y() });
+                    }}
+                  />
+                );
+              }
+
+              if (el.type === 'image') {
+                return (
+                  <URLImage
+                    key={el.id}
+                    el={el}
+                    isSelected={isSelected}
+                    onSelect={(e: any) => {
+                      e.cancelBubble = true;
+                      selectElement(el.id, e.evt.shiftKey);
+                    }}
+                    onDragEnd={(e: any) => {
+                      let newX = e.target.x();
+                      let newY = e.target.y();
+                      if (snapToGrid) {
+                        const snapped = snapPointToGrid({ x: newX, y: newY }, gridSize);
+                        newX = snapped.x;
+                        newY = snapped.y;
+                      }
+                      updateElement(el.id, { x: newX, y: newY });
                     }}
                   />
                 );

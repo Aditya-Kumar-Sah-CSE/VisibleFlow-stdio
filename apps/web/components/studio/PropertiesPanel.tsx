@@ -49,6 +49,7 @@ export function PropertiesPanel() {
     snapToGrid,
     toggleGrid,
     toggleSnap,
+    setPageDimensions,
   } = useEditorStore();
 
   const activePage = project?.pages[activePageIndex];
@@ -509,6 +510,40 @@ export function PropertiesPanel() {
                 </div>
                 <span className="text-[10px] uppercase font-mono">{snapToGrid ? 'ON' : 'OFF'}</span>
               </button>
+            </div>
+
+            {/* Screen / Canvas Aspect Ratio Presets */}
+            <div className="pt-2 border-t border-slate-800 space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Screen Ratios & Resolution
+              </span>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { label: '16:9 Wide', w: 1920, h: 1080, desc: 'Presentation / Video' },
+                  { label: '9:16 Vertical', w: 1080, h: 1920, desc: 'Reels / Shorts' },
+                  { label: '1:1 Square', w: 1080, h: 1080, desc: 'Social / Post' },
+                  { label: '4:3 Standard', w: 1024, h: 768, desc: 'Classic Slide' },
+                ].map((r) => {
+                  const isActive = activePage?.width === r.w && activePage?.height === r.h;
+                  return (
+                    <button
+                      key={r.label}
+                      onClick={() => {
+                        setPageDimensions(r.w, r.h);
+                        toast.success(`Canvas resized to ${r.label}`);
+                      }}
+                      className={`p-2 rounded-lg border text-left transition-all ${
+                        isActive
+                          ? 'border-blue-500 bg-blue-600/20 text-white'
+                          : 'border-slate-800 bg-slate-900 hover:border-slate-700 text-slate-300'
+                      }`}
+                    >
+                      <div className="text-[11px] font-bold">{r.label}</div>
+                      <div className="text-[9px] text-blue-400 font-mono">{r.w}×{r.h}</div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg text-slate-400 text-[11px] leading-relaxed">
